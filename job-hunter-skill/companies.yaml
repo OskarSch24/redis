@@ -1,0 +1,192 @@
+# ============================================================
+# Direkt-Karriereseiten — Firmenliste
+# Plattform: greenhouse | lever | ashby | workable | personio | bamboohr | recruitee | teamtailor
+# slug: URL-Slug der Firma auf der jeweiligen Plattform
+# ============================================================
+
+companies:
+  # --- SaaS / Productivity ---
+  - name: n8n
+    platform: greenhouse
+    slug: n8n
+    country: DE
+
+  - name: Personio
+    platform: greenhouse
+    slug: personio
+    country: DE
+
+  - name: sevDesk
+    platform: personio
+    slug: sevdesk
+    country: DE
+
+  - name: Holvi
+    platform: lever
+    slug: holvi
+    country: FI
+
+  # --- FinTech ---
+  - name: Pleo
+    platform: greenhouse
+    slug: pleo
+    country: DK
+
+  - name: Spendesk
+    platform: greenhouse
+    slug: spendesk
+    country: FR
+
+  - name: Tipalti
+    platform: greenhouse
+    slug: tipalti
+    country: US
+
+  - name: Finom
+    platform: lever
+    slug: finom
+    country: DE
+
+  - name: N26
+    platform: greenhouse
+    slug: n26
+    country: DE
+
+  - name: Klarna
+    platform: greenhouse
+    slug: klarna
+    country: SE
+
+  - name: Wise
+    platform: greenhouse
+    slug: wise
+    country: UK
+
+  - name: Stripe
+    platform: greenhouse
+    slug: stripe
+    country: US
+
+  - name: Revolut
+    platform: greenhouse
+    slug: revolut
+    country: UK
+
+  - name: Scalapay
+    platform: greenhouse
+    slug: scalapay
+    country: IT
+
+  - name: Truevo Payments
+    platform: lever
+    slug: truevo
+    country: MT
+
+  - name: Trust Payments
+    platform: lever
+    slug: trustpayments
+    country: UK
+
+  - name: Papaya Global
+    platform: greenhouse
+    slug: papayaglobal
+    country: IL
+
+  # --- AI / ML ---
+  - name: Aleph Alpha
+    platform: greenhouse
+    slug: alephalpha
+    country: DE
+
+  - name: Parloa
+    platform: ashby
+    slug: parloa
+    country: DE
+
+  - name: Cleverly.ai
+    platform: ashby
+    slug: cleverly
+    country: DE
+
+  - name: deepset
+    platform: lever
+    slug: deepset
+    country: DE
+
+  - name: Synthesia
+    platform: greenhouse
+    slug: synthesia
+    country: UK
+
+  - name: Lilt AI
+    platform: greenhouse
+    slug: lilt
+    country: US
+
+  - name: ElevenLabs
+    platform: ashby
+    slug: elevenlabs
+    country: US
+
+  # --- eCommerce / Retail ---
+  - name: About You
+    platform: greenhouse
+    slug: aboutyou
+    country: DE
+
+  - name: Snocks
+    platform: personio
+    slug: snocks
+    country: DE
+
+  - name: HelloFresh
+    platform: greenhouse
+    slug: hellofresh
+    country: DE
+
+  - name: Auctane
+    platform: greenhouse
+    slug: auctane
+    country: US
+
+  # --- Marketing ---
+  - name: Brandwatch
+    platform: greenhouse
+    slug: brandwatch
+    country: UK
+
+  - name: Welocalize
+    platform: greenhouse
+    slug: welocalize
+    country: US
+
+  # --- Travel ---
+  - name: VistaJet
+    platform: lever
+    slug: vistajet
+    country: MT
+
+  # --- Gaming / Betting ---
+  - name: Tipico
+    platform: greenhouse
+    slug: tipico
+    country: MT
+
+  - name: Betsson
+    platform: greenhouse
+    slug: betsson
+    country: MT
+
+  # --- Aerospace / Aviation ---
+  - name: Lufthansa Technik Malta
+    platform: personio
+    slug: lufthansatechnikmalta
+    country: MT
+
+  # ============================================================
+  # Eigene Firmen hier hinzufügen:
+  # - name: Firmenname
+  #   platform: greenhouse
+  #   slug: firma-slug
+  #   country: DE
+  # ============================================================

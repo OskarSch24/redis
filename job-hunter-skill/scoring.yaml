@@ -1,0 +1,130 @@
+# ============================================================
+# Scoring-Regeln für Job-Matching
+# Passe die Gewichtungen nach Bedarf an.
+# ============================================================
+
+rules:
+  # Positive Signale
+  - id: language_match
+    description: "Job-Beschreibung in Wunsch-Sprache"
+    score: 30
+    condition: language_in_required
+
+  - id: part_time_explicit
+    description: "Teilzeit explizit erlaubt/erwähnt"
+    score: 20
+    keywords:
+      - "part-time"
+      - "part time"
+      - "Teilzeit"
+      - "20 hours"
+      - "25 hours"
+      - "30 hours"
+      - "20h"
+      - "25h"
+      - "30h"
+      - "reduced hours"
+      - "flexible hours"
+
+  - id: remote_possible
+    description: "Remote-Arbeit möglich"
+    score: 15
+    keywords:
+      - "remote"
+      - "work from home"
+      - "fully remote"
+      - "100% remote"
+      - "remote-first"
+      - "distributed team"
+      - "Homeoffice"
+      - "remote optional"
+
+  - id: skill_match
+    description: "Pro Skill-Match aus Profil"
+    score: 10
+    condition: skill_in_description
+
+  - id: salary_above_min
+    description: "Gehalt über Minimum"
+    score: 10
+    condition: salary_above_minimum
+
+  - id: sme_bonus
+    description: "KMU-Bonus (< 500 Mitarbeiter)"
+    score: 5
+    condition: company_is_sme
+
+  - id: async_culture
+    description: "Async-Kultur / flexible Zeiten"
+    score: 8
+    keywords:
+      - "async"
+      - "asynchronous"
+      - "flexible schedule"
+      - "flexible working"
+      - "no meetings"
+      - "outcome-based"
+
+  - id: no_micromanagement
+    description: "Keine Micromanagement-Signale"
+    score: 5
+    keywords:
+      - "autonomous"
+      - "self-managed"
+      - "ownership"
+      - "independent"
+
+  # Negative Signale (Penalties)
+  - id: outbound_sales_penalty
+    description: "Outbound Sales / Kaltakquise"
+    score: -50
+    keywords:
+      - "cold calling"
+      - "cold outreach"
+      - "Kaltakquise"
+      - "outbound sales"
+      - "lead generation cold"
+      - "door to door"
+      - "B2B prospecting"
+      - "pipeline generation"
+      - "hunting new business"
+
+  - id: phone_mandatory_penalty
+    description: "Telefon-Pflicht bei CS-Rolle"
+    score: -30
+    keywords:
+      - "phone support"
+      - "telephone support"
+      - "inbound calls"
+      - "call center"
+      - "Callcenter"
+      - "on the phone"
+      - "customer calls"
+
+  - id: below_salary_penalty
+    description: "Gehalt unter Minimum"
+    score: -20
+    condition: salary_below_minimum
+
+  - id: non_eu_only
+    description: "Job nur für bestimmte Länder ohne EU-Match"
+    score: -15
+    condition: country_not_in_preferences
+
+  - id: blacklist_industry
+    description: "Blacklisted Industrie"
+    score: -100
+    condition: industry_in_blacklist
+
+  - id: blacklist_title
+    description: "Blacklisted Job-Titel"
+    score: -100
+    condition: title_in_blacklist
+
+# Score-Schwellenwerte für Excel-Färbung
+thresholds:
+  excellent: 70     # Grün
+  good: 50          # Hellgrün
+  neutral: 30       # Gelb
+  poor: 0           # Orange
+  reject: -1        # Rot

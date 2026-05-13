@@ -1,0 +1,152 @@
+# ============================================================
+# Job-Hunter Konfiguration — Bewerber-Profil
+# Passe diese Datei an dein Profil an, bevor du den Skill startest.
+# ============================================================
+
+profile:
+  name: "Max Mustermann"
+  email: "max@example.com"
+
+# --- Skills ---
+skills:
+  - name: "Customer Success"
+    level: expert        # expert | applied | basic
+  - name: "Account Management"
+    level: expert
+  - name: "Project Management"
+    level: applied
+  - name: "Salesforce"
+    level: applied
+  - name: "HubSpot"
+    level: applied
+  - name: "Data Analysis"
+    level: basic
+  - name: "Python"
+    level: basic
+  - name: "SQL"
+    level: basic
+  - name: "German"
+    level: expert
+  - name: "English"
+    level: expert
+
+# --- Sprachen (ISO-Codes) ---
+languages:
+  - de
+  - en
+
+# --- Gehaltsanforderungen ---
+salary:
+  min: 40000
+  max: 80000
+  currency: EUR
+  period: yearly        # yearly | monthly | hourly
+
+# --- Standort-Präferenzen ---
+location:
+  remote: true          # Remote-Jobs suchen
+  hybrid: true          # Hybrid-Jobs einschließen
+  onsite: false         # Reine Vor-Ort-Jobs ausschließen
+  countries:
+    - DE
+    - AT
+    - CH
+    - MT
+    - NL
+    - UK
+  cities: []            # Leer = alle Städte der oben genannten Länder
+
+# --- Arbeitszeit ---
+employment:
+  part_time: true       # Teilzeit (20–30h)
+  full_time: true       # Vollzeit
+  freelance: false      # Freelance/Contracting
+  min_hours: 20
+  max_hours: 40
+
+# --- Branchen-Filter ---
+industry:
+  whitelist:            # Nur diese Branchen (leer = alle)
+    - SaaS
+    - FinTech
+    - HR Tech
+    - PropTech
+    - EdTech
+    - HealthTech
+    - Travel Tech
+    - Martech
+  blacklist:            # Diese Branchen immer ausschließen
+    - Gambling
+    - Tobacco
+    - Weapons
+    - MLM
+
+# --- Job-Titel Filter ---
+title:
+  whitelist:            # Job muss eines dieser Wörter enthalten (leer = alle)
+    - Customer Success
+    - Customer Experience
+    - Account Manager
+    - Client Success
+    - Customer Manager
+    - Onboarding
+    - Retention
+    - Partner Manager
+    - Implementation
+  blacklist:            # Jobs mit diesen Wörtern werden gefiltert
+    - "cold calling"
+    - "outbound sales"
+    - "Kaltakquise"
+    - "Sales Development"
+    - "SDR"
+    - "BDR"
+    - "Business Development Representative"
+    - "Door to door"
+
+# --- Such-Queries pro Job-Board ---
+search_queries:
+  default:
+    - "customer success manager"
+    - "customer success"
+    - "account manager saas"
+    - "client success manager"
+    - "onboarding manager"
+  indeed:
+    - "customer success manager remote"
+    - "kundenerfolg manager"
+    - "account manager remote"
+  linkedin:
+    - "customer success manager"
+    - "customer success specialist"
+  stepstone:
+    - "Customer Success Manager"
+    - "Account Manager"
+
+# --- Scoring-Konfiguration ---
+scoring:
+  weights:
+    language_match: 30
+    part_time_allowed: 20
+    remote_possible: 15
+    skill_match_per_skill: 10
+    outbound_penalty: -50
+    phone_sales_penalty: -30
+    below_salary_min_penalty: -20
+  prefer_sme: true      # KMU bevorzugen
+
+# --- Output ---
+output:
+  max_jobs: 5000
+  top_verify: 100       # Top-N Jobs verifizieren
+  excel_filename: "jobs_{timestamp}.xlsx"
+
+# --- Rate-Limiting ---
+rate_limiting:
+  default_delay_seconds: 1.5
+  max_retries: 3
+  timeout_seconds: 30
+
+# --- Logging ---
+logging:
+  level: INFO           # DEBUG | INFO | WARNING | ERROR
+  file: "logs/run_{timestamp}.log"
