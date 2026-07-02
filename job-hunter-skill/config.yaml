@@ -55,6 +55,7 @@ location:
     - NL
     - UK
   cities: []            # Leer = alle Städte der oben genannten Länder
+  strict_eu_uk_only: true   # Volltext-Geo-Filter (geo.py): nur EU + UK, Overseas raus
 
 # --- Arbeitszeit ---
 employment:
@@ -63,6 +64,12 @@ employment:
   freelance: false      # Freelance/Contracting
   min_hours: 20
   max_hours: 40
+
+# --- Firmen-Filter (KMU, company_filter.py) ---
+company:
+  enabled: true
+  max_employees: 500    # KMU=500, Scale-up=2000, Egal=999999
+  blacklist: []         # Firmennamen (Substring-Match), die immer rausfliegen
 
 # --- Branchen-Filter ---
 industry:
@@ -150,3 +157,23 @@ rate_limiting:
 logging:
   level: INFO           # DEBUG | INFO | WARNING | ERROR
   file: "logs/run_{timestamp}.log"
+
+# --- Apify (System-Sektion — von run.py UND cowork_apify.py gelesen) ---
+# Token von console.apify.com hier eintragen ODER Env-Var APIFY_API_TOKEN setzen.
+apify:
+  # Master-Schalter. Bei enabled: false laufen linkedin/glassdoor/stepstone/indeed/jobgether
+  # über ihren direkten Scrape-Fallback; xing + welcometothejungle
+  # überspringen sich mit Warnung (kein Fallback möglich). Kosten: $0.
+  enabled: false
+  api_token: ""
+  timeout_seconds: 600
+  max_results_per_search: 100
+  actors:
+    linkedin: "harvestapi/linkedin-job-search"
+    glassdoor: "valig/glassdoor-jobs-scraper"
+    stepstone: "memo23/stepstone-search-cheerio-ppr"
+    welcometothejungle: "silentflow/welcome-to-the-jungle-scraper-ppe"
+    jobgether: "apify/web-scraper"
+    # Kosten-Treiber — nur bei Bedarf aktivieren (auch in cowork_apify.py einkommentieren):
+    # indeed: "misceres/indeed-scraper"        # ~$7.50/Run
+    # xing: "shahidirfan/Xing-Jobs-Scraper"    # ~$0.72/Run

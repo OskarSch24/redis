@@ -23,8 +23,9 @@ class JobicyAdapter(BaseAdapter):
 
         for query in search_terms[:5]:
             params: dict[str, Any] = {"count": 50}
-            if query:
-                params["tag"] = query.split()[0]
+            query_parts = query.split()
+            if query_parts:
+                params["tag"] = query_parts[0]
 
             resp = await self._get(API_URL, params=params)
             if not resp:

@@ -14,8 +14,10 @@ import argparse
 import asyncio
 import json
 import logging
+import re
 import sys
 import time
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -61,13 +63,14 @@ def load_companies(companies_path: Path) -> list[dict[str, Any]]:
     return data.get("companies", [])
 
 
-def get_queries(config: dict[str, Any]) -> list[str]:
-    queries = config.get("search_queries", {})
-    default = queries.get("default", [])
-    # Merge all query sets and deduplicate
+def get_queries(config: dict[str, Any], source: str | None = None) -> list[str]:
+    """Default-Queries, optional gemergt mit portal-spezifischen Synonymen."""
+    queries_cfg = config.get("search_queries", {}) or {}
+    default = queries_cfg.get("default", []) or []
+    extra = (queries_cfg.get(source) or []) if source and source != "default" else []
     all_queries: list[str] = []
     seen: set[str] = set()
-    for q in default:
+    for q in list(default) + list(extra):
         lower = q.lower()
         if lower not in seen:
             seen.add(lower)
@@ -75,17 +78,26 @@ def get_queries(config: dict[str, Any]) -> list[str]:
     return all_queries
 
 
+COUNTRY_NAMES = {
+    "DE": "Germany", "AT": "Austria", "CH": "Switzerland",
+    "MT": "Malta", "NL": "Netherlands", "UK": "United Kingdom",
+    "GB": "United Kingdom", "IE": "Ireland", "FR": "France",
+    "ES": "Spain", "IT": "Italy", "PT": "Portugal", "BE": "Belgium",
+    "LU": "Luxembourg", "DK": "Denmark", "SE": "Sweden", "NO": "Norway",
+    "FI": "Finland", "IS": "Iceland", "PL": "Poland", "CZ": "Czech Republic",
+    "SK": "Slovakia", "HU": "Hungary", "SI": "Slovenia", "HR": "Croatia",
+    "RO": "Romania", "BG": "Bulgaria", "GR": "Greece", "CY": "Cyprus",
+    "EE": "Estonia", "LV": "Latvia", "LT": "Lithuania",
+}
+
+
 def get_locations(config: dict[str, Any]) -> list[str]:
     loc_cfg = config.get("location", {})
     countries = loc_cfg.get("countries", [])
     cities = loc_cfg.get("cities", [])
     locations: list[str] = cities.copy()
-    country_names = {
-        "DE": "Germany", "AT": "Austria", "CH": "Switzerland",
-        "MT": "Malta", "NL": "Netherlands", "UK": "United Kingdom",
-    }
     for country in countries:
-        name = country_names.get(country.upper(), country)
+        name = COUNTRY_NAMES.get(country.upper(), country)
         if name not in locations:
             locations.append(name)
     return locations
@@ -108,29 +120,75 @@ def save_raw_data(postings: list[Any], source: str, timestamp: str):
         logging.getLogger("job-hunter").warning("Failed to save raw data for %s: %s", source, e)
 
 
-def load_cached_raw(timestamp: str | None = None) -> list[Any]:
-    """Load previously saved raw data for --resume mode."""
+_TS_RE = re.compile(r"_(\d{8}_\d{6})$")
+
+
+def _load_postings_file(json_file: Path) -> list[Any]:
+    """Ein raw-JSON-File laden; ungültige Einzeleinträge werden übersprungen."""
     from schema import JobPosting
 
+    postings: list[Any] = []
+    try:
+        with open(json_file, encoding="utf-8") as f:
+            data = json.load(f)
+        for item in data:
+            try:
+                postings.append(JobPosting.model_validate(item))
+            except Exception:
+                pass
+    except Exception as e:
+        logging.getLogger("job-hunter").warning("Failed to load %s: %s", json_file, e)
+    return postings
+
+
+def latest_cache_timestamp() -> str | None:
+    """Neuester Run-Timestamp über alle Dateien in data/raw."""
+    raw_dir = SKILL_DIR / "data" / "raw"
+    if not raw_dir.exists():
+        return None
+    stamps = []
+    for f in raw_dir.glob("*.json"):
+        m = _TS_RE.search(f.stem)
+        if m:
+            stamps.append(m.group(1))
+    return max(stamps) if stamps else None
+
+
+def load_cached_raw(timestamp: str | None = None) -> list[Any]:
+    """Load previously saved raw data for --resume mode."""
     raw_dir = SKILL_DIR / "data" / "raw"
     if not raw_dir.exists():
         return []
 
     pattern = f"*_{timestamp}.json" if timestamp else "*.json"
-    postings: list[JobPosting] = []
-
+    postings: list[Any] = []
     for json_file in sorted(raw_dir.glob(pattern)):
-        try:
-            with open(json_file, encoding="utf-8") as f:
-                data = json.load(f)
-            for item in data:
-                try:
-                    postings.append(JobPosting.model_validate(item))
-                except Exception:
-                    pass
-        except Exception as e:
-            logging.getLogger("job-hunter").warning("Failed to load %s: %s", json_file, e)
+        postings.extend(_load_postings_file(json_file))
+    return postings
 
+
+def load_cached_source(source: str, timestamp: str | None = None) -> list[Any]:
+    """Neueste (oder timestamp-genaue) Cache-Datei einer einzelnen Quelle laden.
+
+    Wird von --from-cache genutzt: Cowork schreibt via cowork_apify.py save
+    nach data/raw/<source>_<TS>.json; hier laden wir genau diese Quelle,
+    ohne sie live zu fetchen.
+    """
+    logger = logging.getLogger("job-hunter")
+    raw_dir = SKILL_DIR / "data" / "raw"
+    if timestamp:
+        candidates = [raw_dir / f"{source}_{timestamp}.json"]
+        candidates = [c for c in candidates if c.exists()]
+    else:
+        # TS-Format %Y%m%d_%H%M%S ist zero-padded → lexikographisch == chronologisch
+        candidates = sorted(raw_dir.glob(f"{source}_*.json"))[-1:]
+
+    if not candidates:
+        logger.warning("[from-cache] Keine Cache-Datei für Quelle %r gefunden", source)
+        return []
+
+    postings = _load_postings_file(candidates[0])
+    logger.info("[from-cache] %s: %d Jobs aus %s", source, len(postings), candidates[0].name)
     return postings
 
 
@@ -160,6 +218,8 @@ def build_adapters(enabled_sources: list[str], config: dict[str, Any]) -> list[A
         "linkedin": ("sources.linkedin", "LinkedInAdapter"),
         "glassdoor": ("sources.glassdoor", "GlassdoorAdapter"),
         "jobsforgermans": ("sources.jobsforgermans", "JobsForGermansAdapter"),
+        "xing": ("sources.xing", "XingAdapter"),
+        "welcometothejungle": ("sources.welcometothejungle", "WelcomeToTheJungleAdapter"),
     }
 
     adapters = []
@@ -240,23 +300,44 @@ async def run(args: argparse.Namespace):
 
     all_postings: list[Any] = []
 
+    # --- From-cache-Quellen (Cowork-Mode: Apify-Ergebnisse liegen schon in data/raw) ---
+    from_cache: set[str] = set()
+    if args.from_cache and not args.resume:
+        from_cache = {s.strip() for s in args.from_cache.split(",") if s.strip()}
+        logger.info("From-Cache-Quellen: %s", sorted(from_cache))
+        for source in sorted(from_cache):
+            all_postings.extend(load_cached_source(source, args.cache_timestamp))
+
     # --- Resume mode ---
     if args.resume:
-        logger.info("Resume-Modus: Lade gecachte Rohdaten...")
-        all_postings = load_cached_raw()
+        if args.resume == "all":
+            resume_ts = None
+        elif args.resume == "latest":
+            resume_ts = latest_cache_timestamp()
+        else:
+            resume_ts = args.resume
+        logger.info("Resume-Modus: Lade gecachte Rohdaten (Timestamp: %s)...",
+                    resume_ts or "alle")
+        all_postings = load_cached_raw(resume_ts)
         logger.info("Geladen: %d Jobs aus Cache", len(all_postings))
     else:
         # --- Determine enabled sources ---
         if args.sources:
             enabled = [s.strip() for s in args.sources.split(",")]
         else:
+            # xing + welcometothejungle sind Apify-gated: ohne apify.actors-Eintrag
+            # in der Config überspringen sie sich selbst (kein Kostenrisiko).
             enabled = list({
                 "arbeitnow", "remoteok", "remotive", "weworkremotely", "jobicy",
                 "workingnomads", "4dayweek", "jobgether", "germantechjobs",
                 "berlinstartupjobs", "relocateme", "justremote", "workwide",
                 "meetfrank", "jobsinmalta", "konnekt", "jobsforgermans",
                 "stepstone", "indeed", "linkedin", "glassdoor",
+                "xing", "welcometothejungle",
             })
+
+        # From-cache-Quellen nicht nochmal live fetchen
+        enabled = [s for s in enabled if s not in from_cache]
 
         adapters = build_adapters(enabled, config)
         logger.info("Aktive Quellen (%d): %s", len(adapters), [a.name for a in adapters])
@@ -266,7 +347,9 @@ async def run(args: argparse.Namespace):
 
         async def limited_fetch(adapter):
             async with semaphore:
-                return await fetch_from_adapter(adapter, queries, locations, timestamp, logger)
+                # Default-Queries + portal-spezifische Synonyme (search_queries.<name>)
+                adapter_queries = get_queries(config, adapter.name)
+                return await fetch_from_adapter(adapter, adapter_queries, locations, timestamp, logger)
 
         logger.info("Starte paralleles Fetching...")
         t0 = time.monotonic()
@@ -282,7 +365,7 @@ async def run(args: argparse.Namespace):
 
         # --- Career pages ---
         companies_path = SKILL_DIR / "companies.yaml"
-        companies = load_companies(companies_path)
+        companies = [] if "career_pages" in from_cache else load_companies(companies_path)
 
         if companies:
             logger.info("Crawle %d Karriereseiten...", len(companies))
@@ -292,6 +375,69 @@ async def run(args: argparse.Namespace):
             save_raw_data(career_postings, "career_pages", timestamp)
             all_postings.extend(career_postings)
             logger.info("Karriereseiten: %d Jobs", len(career_postings))
+
+    # --- GIGO-Filter (Mindestqualität: Titel + Firma + URL) ---
+    valid_postings = [p for p in all_postings if p.is_valid]
+    gigo_dropped = len(all_postings) - len(valid_postings)
+    if gigo_dropped:
+        logger.info("GIGO-Filter: %d von %d Einträgen entfernt (Titel/Firma/URL fehlt)",
+                    gigo_dropped, len(all_postings))
+    else:
+        logger.info("GIGO-Filter: alle %d Einträge valid", len(all_postings))
+    all_postings = valid_postings
+
+    # --- Geo-Filter (EU/UK strict) ---
+    if config.get("location", {}).get("strict_eu_uk_only"):
+        from geo import is_european
+
+        kept: list[Any] = []
+        geo_reasons: Counter = Counter()
+        for p in all_postings:
+            ok, reason = is_european(p)
+            if ok:
+                kept.append(p)
+            else:
+                geo_reasons[reason] += 1
+        geo_removed = len(all_postings) - len(kept)
+        if geo_removed:
+            logger.warning("Geo-Filter (EU/UK strict): %d von %d Jobs entfernt",
+                           geo_removed, len(all_postings))
+            for reason, count in geo_reasons.most_common():
+                logger.info("  %-52s %4d", reason, count)
+        else:
+            logger.info("Geo-Filter (EU/UK strict): alle %d Jobs OK", len(all_postings))
+        all_postings = kept
+
+    # --- Company-Filter (KMU-Größe + Firmen-Blacklist) ---
+    company_cfg = config.get("company") or {}
+    if company_cfg and company_cfg.get("enabled", True):
+        from company_filter import is_acceptable_company
+
+        kept = []
+        company_reasons: Counter = Counter()
+        for p in all_postings:
+            ok, reason = is_acceptable_company(p, company_cfg)
+            if ok:
+                kept.append(p)
+            else:
+                company_reasons[reason] += 1
+        company_removed = len(all_postings) - len(kept)
+        if company_removed:
+            logger.warning("Company-Filter (max %s MA): %d von %d Jobs entfernt",
+                           company_cfg.get("max_employees", 500),
+                           company_removed, len(all_postings))
+            for reason, count in company_reasons.most_common():
+                logger.info("  %-52s %4d", reason, count)
+        else:
+            logger.info("Company-Filter: alle %d Jobs OK", len(all_postings))
+        all_postings = kept
+
+    # --- Quellen-Statistik ---
+    per_source: Counter = Counter(p.source for p in all_postings)
+    if per_source:
+        logger.info("Einträge pro Quelle nach Validierung:")
+        for source, count in per_source.most_common():
+            logger.info("  %-22s %4d", source, count)
 
     # --- Deduplizierung ---
     logger.info("Deduplizierung...")
@@ -358,8 +504,22 @@ def main():
     parser.add_argument("--config", help="Pfad zur config.yaml")
     parser.add_argument("--max-jobs", type=int, help="Maximale Anzahl Jobs")
     parser.add_argument("--output", help="Output-Pfad für Excel-Datei")
-    parser.add_argument("--resume", action="store_true", help="Nutze gecachte Rohdaten")
+    parser.add_argument(
+        "--resume", nargs="?", const="latest", default=None, metavar="TS",
+        help="Nutze gecachte Rohdaten statt zu fetchen. Ohne Wert: neuester Run; "
+             "'all': alle Cache-Dateien; sonst exakter Timestamp (z.B. 20260513_210926)",
+    )
     parser.add_argument("--sources", help="Kommaseparierte Quellenliste")
+    parser.add_argument(
+        "--from-cache", metavar="SOURCES",
+        help="Kommaseparierte Quellen aus data/raw laden statt live zu fetchen "
+             "(Cowork-Mode: Apify-Ergebnisse wurden via cowork_apify.py save gespeichert). "
+             "Alle übrigen Quellen fetchen normal.",
+    )
+    parser.add_argument(
+        "--cache-timestamp", metavar="TS",
+        help="Exakter Timestamp für --from-cache (Default: neueste Datei pro Quelle)",
+    )
     parser.add_argument("--top", type=int, help="Anzahl Jobs für Verifizierung")
     parser.add_argument("--no-verify", action="store_true", help="Verifizierung überspringen")
     args = parser.parse_args()

@@ -19,9 +19,9 @@ PLATFORM_APIS = {
     "ashby": "https://api.ashbyhq.com/posting-api/job-board/{slug}",
     "workable": "https://apply.workable.com/api/v3/accounts/{slug}/jobs",
     "personio": "https://{slug}.jobs.personio.com/xml",
-    "bamboohr": "https://{slug}.bamboohr.com/jobs/embed2.php?version=1.0.0",
+    "bamboohr": "https://{slug}.bamboohr.com/careers/list",
     "recruitee": "https://{slug}.recruitee.com/api/offers/",
-    "teamtailor": "https://api.teamtailor.com/v1/jobs",
+    "teamtailor": "https://{slug}.teamtailor.com/jobs.json",
 }
 
 
@@ -67,7 +67,9 @@ class CareerPagesCrawler:
             return []
 
         try:
-            handler = getattr(self, f"_fetch_{platform}", self._fetch_unknown)
+            handler = getattr(self, f"_fetch_{platform}", None)
+            if handler is None:
+                return await self._fetch_unknown(client, slug, name, country, platform)
             jobs = await handler(client, slug, name, country)
             await asyncio.sleep(self.delay)
 
@@ -253,6 +255,43 @@ class CareerPagesCrawler:
             raw_data={},
         )
 
+    async def _fetch_bamboohr(
+        self, client: httpx.AsyncClient, slug: str, name: str, country: str
+    ) -> list[JobPosting]:
+        url = PLATFORM_APIS["bamboohr"].format(slug=slug)
+        resp = await client.get(url)
+        if resp.status_code != 200:
+            return []
+        try:
+            data = resp.json()
+            jobs = data.get("result", []) if isinstance(data, dict) else data
+        except Exception:
+            return []
+        if not isinstance(jobs, list):
+            return []
+        return [self._parse_bamboohr(j, slug, name, country) for j in jobs]
+
+    def _parse_bamboohr(self, job: dict[str, Any], slug: str, company: str, country: str) -> JobPosting:
+        location = job.get("location", {})
+        if isinstance(location, dict):
+            loc_str = ", ".join(
+                p for p in [location.get("city") or "", location.get("state") or ""] if p
+            )
+        else:
+            loc_str = str(location or "")
+        return JobPosting(
+            source="bamboohr",
+            company=company,
+            title=job.get("jobOpeningName", ""),
+            location=loc_str,
+            remote_type="full_remote" if job.get("isRemote") else self._normalize_remote_type(loc_str),
+            country=country,
+            employment_type=self._map_employment(job.get("employmentStatusLabel") or ""),
+            description_text=job.get("departmentLabel") or "",
+            application_url=f"https://{slug}.bamboohr.com/careers/{job.get('id', '')}",
+            raw_data=job,
+        )
+
     async def _fetch_recruitee(
         self, client: httpx.AsyncClient, slug: str, name: str, country: str
     ) -> list[JobPosting]:
@@ -284,37 +323,71 @@ class CareerPagesCrawler:
     async def _fetch_teamtailor(
         self, client: httpx.AsyncClient, slug: str, name: str, country: str
     ) -> list[JobPosting]:
-        headers = {"X-Api-Version": "20210218"}
-        url = f"https://api.teamtailor.com/v1/jobs?filter[department]={slug}"
-        resp = await client.get(url, headers=headers)
+        # Public JSON Feed of the hosted career site — no API token required.
+        url = PLATFORM_APIS["teamtailor"].format(slug=slug)
+        resp = await client.get(url)
         if resp.status_code != 200:
             return []
         try:
             data = resp.json()
-            jobs = data.get("data", [])
+            jobs = data.get("items", [])
         except Exception:
             return []
         return [self._parse_teamtailor(j, name, country) for j in jobs]
 
     def _parse_teamtailor(self, job: dict[str, Any], company: str, country: str) -> JobPosting:
-        attrs = job.get("attributes", {})
+        posting = job.get("_jobposting", {})
+        if not isinstance(posting, dict):
+            posting = {}
+        location = self._teamtailor_location(posting.get("jobLocation"))
+        html = job.get("content_html", "") or posting.get("description", "")
+        posted = None
+        raw_date = job.get("date_published") or posting.get("datePosted") or ""
+        if raw_date:
+            try:
+                posted = date.fromisoformat(raw_date[:10])
+            except ValueError:
+                posted = None
+        if posting.get("jobLocationType") == "TELECOMMUTE":
+            remote_type = "full_remote"
+        else:
+            remote_type = self._normalize_remote_type(location)
         return JobPosting(
             source="teamtailor",
             company=company,
-            title=attrs.get("title", ""),
-            location=attrs.get("remote-status", ""),
-            remote_type=self._normalize_remote_type(attrs.get("remote-status", "")),
+            title=job.get("title", ""),
+            location=location,
+            remote_type=remote_type,
             country=country,
-            employment_type="full_time",
-            description_text=attrs.get("body", ""),
-            application_url=attrs.get("career-site-url", ""),
+            employment_type=self._map_employment(posting.get("employmentType") or ""),
+            description_text=html,
+            description_html=html,
+            posted_date=posted,
+            application_url=job.get("url", ""),
             raw_data=job,
         )
 
+    def _teamtailor_location(self, places: Any) -> str:
+        if isinstance(places, dict):
+            places = [places]
+        if not isinstance(places, list):
+            return ""
+        parts = []
+        for place in places:
+            address = place.get("address", {}) if isinstance(place, dict) else {}
+            if not isinstance(address, dict):
+                continue
+            label = ", ".join(
+                p for p in [address.get("addressLocality") or "", address.get("addressCountry") or ""] if p
+            )
+            if label:
+                parts.append(label)
+        return "; ".join(parts)
+
     async def _fetch_unknown(
-        self, client: httpx.AsyncClient, slug: str, name: str, country: str
+        self, client: httpx.AsyncClient, slug: str, name: str, country: str, platform: str = ""
     ) -> list[JobPosting]:
-        logger.debug("[career_pages] Unknown platform for %s", name)
+        logger.warning("[career_pages] %s: unknown platform '%s' — no fetcher implemented, skipping", name, platform)
         return []
 
     def _normalize_remote_type(self, text: str) -> str:

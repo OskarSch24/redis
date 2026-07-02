@@ -95,6 +95,15 @@ class JobPosting(BaseModel):
 
         return self
 
+    @property
+    def is_valid(self) -> bool:
+        """GIGO-Gate: Mindestanforderungen an einen brauchbaren Datensatz."""
+        return bool(
+            self.title.strip()
+            and self.company.strip()
+            and self.application_url.startswith(("http://", "https://"))
+        )
+
     def richness_score(self) -> int:
         """Used during deduplication to prefer the most complete record."""
         return sum([

@@ -6,3 +6,4 @@ lxml>=5.2.0
 openpyxl>=3.1.0
 pyyaml>=6.0.0
 rapidfuzz>=3.9.0
+eval_type_backport  # Pflicht auf Python 3.9 (PEP-604-Unions in pydantic-Modellen)

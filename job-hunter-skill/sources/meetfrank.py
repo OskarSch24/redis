@@ -30,10 +30,14 @@ class MeetFrankAdapter(BaseAdapter):
             except Exception:
                 continue
 
-            jobs = data if isinstance(data, list) else data.get("data", data.get("jobs", []))
+            raw_jobs = data if isinstance(data, list) else (data.get("data") or data.get("jobs") or [])
+            jobs = [j for j in raw_jobs if isinstance(j, dict)] if isinstance(raw_jobs, list) else []
 
             for job in jobs:
-                postings.append(self._parse(job))
+                try:
+                    postings.append(self._parse(job))
+                except Exception as e:
+                    logger.debug("[meetfrank] Parse error: %s", e)
             await self._sleep()
 
         seen = set()

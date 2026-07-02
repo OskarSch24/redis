@@ -77,7 +77,13 @@ class Verifier:
                     resp = await client.get(posting.application_url)
                     status = resp.status_code
 
-                posting.is_active = status in (200, 201, 301, 302)
+                if status in (200, 201, 301, 302):
+                    posting.is_active = True
+                elif status in (403, 405, 429, 999):
+                    # Bot-Block/Rate-Limit ≠ Job weg — unbekannt lassen
+                    posting.is_active = None
+                else:
+                    posting.is_active = False
 
                 if posting.is_active and status == 200 and resp.headers.get("content-type", "").startswith("text/html"):
                     content = resp.text.lower()
@@ -88,7 +94,8 @@ class Verifier:
                         "stelle nicht mehr verfügbar",
                         "position is closed",
                         "page not found",
-                        "404",
+                        "error 404",
+                        "404 not found",
                     ]):
                         posting.is_active = False
 

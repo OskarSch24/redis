@@ -81,7 +81,7 @@ class Scorer:
 
             elif condition == "title_in_blacklist":
                 if self._title_blacklisted(posting.title):
-                    earned = -100.0
+                    earned = points  # negative, aus scoring.yaml
 
             if earned != 0:
                 details[rule_id] = earned

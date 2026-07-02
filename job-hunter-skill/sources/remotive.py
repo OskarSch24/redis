@@ -31,7 +31,10 @@ class RemotiveAdapter(BaseAdapter):
                 continue
 
             for job in data.get("jobs", []):
-                postings.append(self._parse(job))
+                try:
+                    postings.append(self._parse(job))
+                except Exception as e:
+                    logger.debug("[remotive] Parse error: %s", e)
             await self._sleep()
 
         seen = set()
@@ -53,8 +56,8 @@ class RemotiveAdapter(BaseAdapter):
             remote_type="full_remote",
             country="",
             employment_type="full_time",
-            salary_min=self._parse_salary_min(job.get("salary", "")),
-            salary_max=self._parse_salary_max(job.get("salary", "")),
+            salary_min=self._parse_salary_min(job.get("salary") or ""),
+            salary_max=self._parse_salary_max(job.get("salary") or ""),
             description_text=job.get("description", ""),
             application_url=job.get("url", ""),
             skills_mentioned=job.get("tags", []),

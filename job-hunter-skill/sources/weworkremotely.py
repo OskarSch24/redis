@@ -56,7 +56,7 @@ class WeWorkRemotelyAdapter(BaseAdapter):
             desc_el = item.find("description")
             pub_el = item.find("pubDate")
 
-            title = title_el.text if title_el is not None else ""
+            title = (title_el.text or "") if title_el is not None else ""
             # WWR titles are like "Company: Job Title"
             if ": " in title:
                 company, title = title.split(": ", 1)
@@ -66,8 +66,8 @@ class WeWorkRemotelyAdapter(BaseAdapter):
             if not self._title_relevant(title, queries):
                 continue
 
-            link = link_el.text if link_el is not None else ""
-            desc = desc_el.text if desc_el is not None else ""
+            link = (link_el.text or "") if link_el is not None else ""
+            desc = (desc_el.text or "") if desc_el is not None else ""
 
             posted = None
             if pub_el is not None and pub_el.text:

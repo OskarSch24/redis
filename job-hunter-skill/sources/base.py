@@ -34,7 +34,10 @@ class BaseAdapter(ABC):
     def __init__(self, config: dict[str, Any]):
         self.config = config
         rl = config.get("rate_limiting", {})
-        self.rate_limit_delay = float(rl.get("default_delay_seconds", self.rate_limit_delay))
+        # Config liefert das globale Minimum; pro Adapter getunte Delays bleiben erhalten
+        self.rate_limit_delay = max(
+            float(rl.get("default_delay_seconds", 1.5)), type(self).rate_limit_delay
+        )
         self.max_retries = int(rl.get("max_retries", self.max_retries))
         self.timeout = int(rl.get("timeout_seconds", self.timeout))
         self._client: httpx.AsyncClient | None = None
@@ -77,7 +80,7 @@ class BaseAdapter(ABC):
                 else:
                     logger.warning("[%s] HTTP %s for %s (attempt %d/%d)",
                                    self.name, e.response.status_code, url, attempt, self.max_retries)
-            except (httpx.ConnectError, httpx.TimeoutException) as e:
+            except httpx.TransportError as e:
                 logger.warning("[%s] Network error for %s: %s (attempt %d/%d)",
                                self.name, url, e, attempt, self.max_retries)
             if attempt < self.max_retries:

@@ -23,6 +23,7 @@ class FourDayWeekAdapter(BaseAdapter):
 
     async def fetch_all(self, queries: list[str], locations: list[str]) -> list[JobPosting]:
         postings: list[JobPosting] = []
+        seen_urls: set[str] = set()
         page = 1
 
         while page <= 10:
@@ -37,13 +38,22 @@ class FourDayWeekAdapter(BaseAdapter):
             if not job_cards:
                 break
 
+            new_on_page = 0
             for card in job_cards:
                 try:
                     posting = self._parse_card(card)
-                    if posting and self._title_relevant(posting.title, queries):
+                    if not posting or posting.application_url in seen_urls:
+                        continue
+                    seen_urls.add(posting.application_url)
+                    new_on_page += 1
+                    if self._title_relevant(posting.title, queries):
                         postings.append(posting)
                 except Exception as e:
                     logger.debug("[4dayweek] Card parse error: %s", e)
+
+            # Seite ohne neue URLs → Pagination am Ende (Featured-Links wiederholen sich)
+            if new_on_page == 0:
+                break
 
             page += 1
             await self._sleep()
